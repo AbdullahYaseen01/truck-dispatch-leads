@@ -5,7 +5,7 @@
 //
 // Only the highest reply-likelihood leads are kept (see replyScore in agents/qualified.js).
 // Usage: node src/qualified-contacts.js [--top 500] [--min-score 0] [--min-months 5] [--max-months 0] [--max-fleet 10]
-//          [--states TX,FL] [--import 100] [--out data/private/qualified-contacts.csv]
+//          [--states TX,FL] [--import 100] [--out data/private/qualified-contacts.csv] [--encrypt-to exports/contacts.enc.json]
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.js';
@@ -49,11 +49,26 @@ const leads = picked.map((c) => {
 });
 
 fs.mkdirSync(path.dirname(out), { recursive: true });
-writeCsv(out, ['reply_score', 'mc_number', 'zip_code', 'name', 'owner_name', 'phone', 'email', 'state', 'city', 'usdot_number', 'active_since', 'tractors', 'power_units', 'why'],
-  leads.map(({ c, lead }) => ({
+const COLS = ['reply_score', 'mc_number', 'zip_code', 'name', 'owner_name', 'phone', 'email', 'state', 'city', 'usdot_number', 'active_since', 'tractors', 'power_units', 'why'];
+const rows = leads.map(({ c, lead }) => ({
     reply_score: c.score, why: c.why, mc_number: `MC${c.mc}`, zip_code: c.zip, name: lead.name, owner_name: lead.owner_name || '', phone: lead.phone || '', email: lead.emails[0]?.email || '',
     state: lead.state, city: lead.city, usdot_number: c.dot, active_since: c.active_since, tractors: c.tractors, power_units: c.power_units || '',
-  })));
+}));
+writeCsv(out, COLS, rows);
+// --encrypt-to: password-encrypted copy for the website (password from CONTACTS_PASSWORD; never stored in the repo).
+const sealedOut = arg('encrypt-to', '');
+if (sealedOut) {
+  if (!process.env.CONTACTS_PASSWORD) { console.error('--encrypt-to needs the CONTACTS_PASSWORD environment variable'); process.exit(1); }
+  const { seal, unseal } = await import('./lib/seal.js');
+  // Encryption output is random each time, so only rewrite when the contacts actually changed (no empty commits).
+  const prev = fs.existsSync(sealedOut) ? await unseal(JSON.parse(fs.readFileSync(sealedOut, 'utf8')), process.env.CONTACTS_PASSWORD).catch(() => null) : null;
+  if (prev && JSON.stringify(prev.rows) === JSON.stringify(rows)) console.log(`encrypted copy unchanged: ${sealedOut}`);
+  else {
+    fs.mkdirSync(path.dirname(sealedOut), { recursive: true });
+    fs.writeFileSync(sealedOut, JSON.stringify(await seal({ updated: new Date().toISOString(), cols: COLS, rows }, process.env.CONTACTS_PASSWORD)));
+    console.log(`encrypted copy -> ${sealedOut}`);
+  }
+}
 const withEmail = leads.filter(({ lead }) => lead.emails.length).length;
 const withPhone = leads.filter(({ lead }) => lead.phone).length;
 console.log(`qualified: ${carriers.length}; ranked: ${scored.length}; excluded ${JSON.stringify(excluded)}; `

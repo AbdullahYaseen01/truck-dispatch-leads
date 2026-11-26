@@ -30,10 +30,15 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node src/export-mc-zip.js --min-months "${{ github.event.inputs.min_months || '5' }}" --max-fleet "${{ github.event.inputs.max_fleet || '10' }}" --out exports/mc-zip.csv
+      - name: Encrypted contact list for the website (top 500 by reply likelihood)
+        env:
+          CONTACTS_PASSWORD: ${{ secrets.CONTACTS_PASSWORD }}
+        if: env.CONTACTS_PASSWORD != ''
+        run: node src/qualified-contacts.js --top 500 --min-months "${{ github.event.inputs.min_months || '5' }}" --max-fleet "${{ github.event.inputs.max_fleet || '10' }}" --out /tmp/contacts.csv --encrypt-to exports/contacts.enc.json
       - name: Commit the updated list
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add exports/mc-zip.csv
+          git add exports/mc-zip.csv exports/contacts.enc.json
           git diff --cached --quiet || git commit -m "data: MC + ZIP update"
           git push

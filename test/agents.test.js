@@ -154,6 +154,14 @@ test('reply score: shared or service emails are dropped; a recent one-truck inte
   assert.equal(old.score, 0);
 });
 
+test('sealed contacts decrypt only with the right password and hide the plaintext', async () => {
+  const { seal, unseal } = await import('../src/lib/seal.js');
+  const box = await seal({ rows: [{ email: 'owner@gmail.com', phone: '8165551234' }] }, 'right-password');
+  assert.ok(!JSON.stringify(box).includes('owner@gmail.com'));
+  assert.deepEqual(await unseal(box, 'right-password'), { rows: [{ email: 'owner@gmail.com', phone: '8165551234' }] });
+  await assert.rejects(unseal(box, 'wrong-password'));
+});
+
 test('send window uses the recipient state time zone and skips weekends', async () => {
   const { inSendWindow } = await import('../src/agents/outreach.js');
   const s = { send_window_start_hour: 8, send_window_end_hour: 17, send_weekends: false };

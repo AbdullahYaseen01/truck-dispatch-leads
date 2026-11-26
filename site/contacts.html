@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Private contacts: top carriers</title>
+<style>
+  :root { --ink: #0f172a; --muted: #64748b; --line: #e2e8f0; --accent: #2563eb; --bg: #f8fafc; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: var(--ink); background: var(--bg); }
+  header { background: #0f172a; color: #fff; padding: 18px 20px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 20px; } header p { margin: 4px 0 0; color: #cbd5e1; font-size: 13px; }
+  header a { color: #93c5fd; } .spacer { flex: 1; }
+  main { max-width: 1300px; margin: 0 auto; padding: 16px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+  label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 4px; }
+  input, select { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; min-width: 120px; color: var(--ink); }
+  button { font: inherit; padding: 8px 12px; border-radius: 7px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+  button.ghost { background: #fff; color: var(--accent); }
+  .wrap { background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: auto; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: #f1f5f9; font-size: 12px; color: var(--muted); position: sticky; top: 0; white-space: nowrap; }
+  td.mc { font-family: ui-monospace, Consolas, monospace; font-weight: 600; white-space: nowrap; }
+  td a { color: var(--accent); text-decoration: none; white-space: nowrap; }
+  .score { font-weight: 700; color: #166534; } .why { color: var(--muted); font-size: 12px; max-width: 280px; }
+  .err { color: #b91c1c; } .muted { color: var(--muted); } .hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Private contacts: highest-reply carriers</h1>
+  <p>Owner name, phone and email for the top-ranked qualified carriers. Encrypted; only opens with your password.</p></div>
+  <span class="spacer"></span><a href="/">← MC + ZIP list</a>
+</header>
+<main>
+  <form id="unlock" class="card bar">
+    <label>Password<input id="pw" type="password" autocomplete="current-password" required></label>
+    <label style="flex-direction:row;align-items:center;gap:6px;color:var(--ink)"><input id="remember" type="checkbox" style="min-width:0"> Remember on this device</label>
+    <button type="submit">Unlock</button> <span id="msg" class="muted"></span>
+  </form>
+  <div id="view" class="hidden">
+    <div class="card bar">
+      <label>Search (name, MC, ZIP, email)<input id="q"></label>
+      <label>State<select id="state"><option value="">All states</option></select></label>
+      <label>ZIP starts with<input id="zip" inputmode="numeric"></label>
+      <span class="spacer"></span>
+      <button id="dl" type="button">Download CSV</button>
+      <button id="lock" type="button" class="ghost">Lock</button>
+    </div>
+    <div class="wrap"><table>
+      <thead><tr><th>Score</th><th>MC number</th><th>ZIP</th><th>Carrier</th><th>Owner</th><th>Phone</th><th>Email</th><th>State / city</th><th>Active since</th><th>Why</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+    <p class="muted" id="foot"></p>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const bytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+let box = null, payload = null;
+async function unseal(password) {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: bytes(box.salt), iterations: box.iterations, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes(box.iv) }, key, bytes(box.data));
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+const phoneFmt = (p) => { const d = String(p).replace(/\D/g, ''); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : p; };
+function filtered() {
+  const q = $('q').value.trim().toLowerCase().replace(/^mc\s*-?/, ''), st = $('state').value, zip = $('zip').value.trim();
+  return payload.rows.filter((r) => (!st || r.state === st) && (!zip || String(r.zip_code).startsWith(zip))
+    && (!q || [r.name, r.mc_number, r.zip_code, r.email, r.owner_name].some((v) => String(v).toLowerCase().includes(q))));
+}
+function render() {
+  const rows = filtered();
+  $('rows').innerHTML = rows.map((r) => `<tr><td class="score">${esc(r.reply_score)}</td><td class="mc">${esc(r.mc_number)}</td><td>${esc(r.zip_code)}</td>
+    <td>${esc(r.name)}</td><td>${esc(r.owner_name)}</td>
+    <td>${r.phone ? `<a href="tel:+1${esc(String(r.phone).replace(/\D/g, ''))}">${esc(phoneFmt(r.phone))}</a>` : '<span class="muted">—</span>'}</td>
+    <td>${r.email ? `<a href="mailto:${esc(r.email)}">${esc(r.email)}</a>` : '<span class="muted">—</span>'}</td>
+    <td>${esc(r.state)}<div class="muted">${esc(r.city)}</div></td><td>${esc(r.active_since)}</td><td class="why">${esc(r.why)}</td></tr>`).join('')
+    || '<tr><td colspan="10" class="muted">No contacts match.</td></tr>';
+  $('foot').textContent = `${rows.length} of ${payload.rows.length} contacts · updated ${new Date(payload.updated).toLocaleString()}`;
+}
+function show(p) {
+  payload = p;
+  const states = [...new Set(p.rows.map((r) => r.state).filter(Boolean))].sort();
+  $('state').innerHTML = '<option value="">All states</option>' + states.map((s) => `<option>${esc(s)}</option>`).join('');
+  $('unlock').classList.add('hidden'); $('view').classList.remove('hidden');
+  render();
+}
+async function tryUnlock(pw, quiet) {
+  try {
+    if (!box) box = await (await fetch('data/contacts.enc.json', { cache: 'no-store' })).json();
+    const p = await unseal(pw);
+    if ($('remember').checked) localStorage.setItem('contacts_pw', pw);
+    show(p);
+  } catch (e) {
+    if (!quiet) $('msg').innerHTML = `<span class="err">${box ? 'Wrong password.' : 'Could not load the contact list.'}</span>`;
+    localStorage.removeItem('contacts_pw');
+  }
+}
+$('unlock').onsubmit = (e) => { e.preventDefault(); $('msg').textContent = 'Unlocking…'; tryUnlock($('pw').value); };
+$('lock').onclick = () => { localStorage.removeItem('contacts_pw'); payload = null; $('rows').innerHTML = ''; $('view').classList.add('hidden'); $('unlock').classList.remove('hidden'); $('pw').value = ''; $('msg').textContent = ''; };
+for (const id of ['q', 'state', 'zip']) $(id).addEventListener('input', render);
+$('dl').onclick = () => {
+  const cols = payload.cols;
+  const csv = [cols.join(','), ...filtered().map((r) => cols.map((c) => { const s = String(r[c] ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }).join(','))].join('\n');
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: 'top-carrier-contacts.csv' });
+  a.click(); URL.revokeObjectURL(a.href);
+};
+const saved = localStorage.getItem('contacts_pw');
+if (saved) { $('remember').checked = true; tryUnlock(saved, true); }
+</script>
+</body>
+</html>

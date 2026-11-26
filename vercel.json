@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "echo no install needed",
-  "buildCommand": "mkdir -p site/data && cp exports/mc-zip.csv site/data/mc-zip.csv",
+  "buildCommand": "mkdir -p site/data && cp exports/mc-zip.csv site/data/mc-zip.csv && cp exports/contacts.enc.json site/data/contacts.enc.json",
   "outputDirectory": "site",
   "headers": [
     { "source": "/data/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }] }
