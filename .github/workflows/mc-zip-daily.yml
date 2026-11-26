@@ -1,9 +1,10 @@
-name: Daily MC + ZIP export
+name: MC + ZIP agent
 
-# Free: runs on GitHub's runners and pulls only public FMCSA data (no keys).
+# Free on a public repo: runs on GitHub's runners and pulls only public FMCSA data (no keys).
+# FMCSA's authority dataset keeps only the most recent changes, so this runs often to never miss a day.
 on:
   schedule:
-    - cron: '0 14 * * *' # daily, after FMCSA's daily dataset update
+    - cron: '17 */4 * * *' # every 4 hours
   workflow_dispatch:
     inputs:
       days:
