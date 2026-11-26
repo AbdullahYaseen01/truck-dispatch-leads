@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>New Carriers: MC number + ZIP</title>
+<title>Qualified Carriers: MC number + ZIP</title>
 <style>
   :root { --ink: #0f172a; --muted: #64748b; --line: #e2e8f0; --accent: #2563eb; --bg: #f8fafc; }
   * { box-sizing: border-box; }
@@ -24,6 +24,7 @@
   table { border-collapse: collapse; width: 100%; }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
   th { background: #f1f5f9; font-size: 12px; color: var(--muted); position: sticky; top: 0; }
+  td:nth-child(3) { white-space: normal; min-width: 180px; }
   td.mc { font-family: ui-monospace, Consolas, monospace; font-weight: 600; }
   .tag { font-size: 11px; padding: 2px 7px; border-radius: 99px; background: #dcfce7; color: #166534; }
   .tag.applied { background: #fef9c3; color: #854d0e; }
@@ -34,8 +35,8 @@
 </head>
 <body>
 <header>
-  <h1>New US carriers: MC number + ZIP code</h1>
-  <p>Official FMCSA operating-authority grants and applications (≤ 10 trucks), joined to the FMCSA census for the ZIP. Updated automatically every 4 hours.</p>
+  <h1>Qualified US carriers: MC number + ZIP code</h1>
+  <p>MC authority continuously active for 5+ months, at least one tractor (large commercial truck), ≤ 10 power units. Official FMCSA data, refreshed automatically every 4 hours.</p>
 </header>
 <main>
   <div class="stats" id="stats"></div>
@@ -43,15 +44,17 @@
     <label>Search (MC, name, DOT)<input id="q" placeholder="MC56166284"></label>
     <label>State<select id="state"><option value="">All states</option></select></label>
     <label>ZIP starts with<input id="zip" inputmode="numeric" placeholder="770"></label>
-    <label>Authority<select id="auth"><option value="">Granted + applied</option><option value="granted">Granted</option><option value="applied">Applied</option></select></label>
-    <label>First seen<select id="seen"><option value="">Any time</option><option value="1">Today</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option></select></label>
+    <label>Authority active<select id="months"><option value="5">5+ months</option><option value="6">6+ months</option><option value="12">1+ year</option><option value="24">2+ years</option></select></label>
+    <label>Active at most<select id="maxm"><option value="">No limit</option><option value="12">1 year</option><option value="24">2 years</option><option value="60">5 years</option></select></label>
+    <label>Tractors<select id="tr"><option value="1">1+</option><option value="2">2+</option><option value="5">5+</option></select></label>
+    <label>Added to list<select id="seen"><option value="">Any time</option><option value="1">Today</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option></select></label>
     <span class="spacer"></span>
     <button id="dl">Download filtered CSV</button>
     <a class="btn ghost" href="data/mc-zip.csv" download>Full CSV</a>
   </div>
   <div class="wrap"><table>
-    <thead><tr><th>MC number</th><th>ZIP</th><th>Carrier</th><th>State</th><th>City</th><th>USDOT</th><th>Authority</th><th>Date</th></tr></thead>
-    <tbody id="rows"><tr><td colspan="8" class="muted">Loading…</td></tr></tbody>
+    <thead><tr><th>MC number</th><th>ZIP</th><th>Carrier</th><th>State</th><th>City</th><th>USDOT</th><th>Active since</th><th>Months</th><th>Tractors</th><th>Power units</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="10" class="muted">Loading…</td></tr></tbody>
   </table></div>
   <p class="foot" id="foot"></p>
 </main>
@@ -75,8 +78,10 @@ function parse(text) {
 const today = new Date().toISOString().slice(0, 10);
 const ago = (d) => (Date.parse(today) - Date.parse(d)) / 86400000;
 function filtered() {
-  const q = $('q').value.trim().toLowerCase().replace(/^mc\s*-?/, ''), st = $('state').value, zip = $('zip').value.trim(), au = $('auth').value, seen = $('seen').value;
-  return data.filter((r) => (!st || r.state === st) && (!zip || r.zip_code.startsWith(zip)) && (!au || r.authority === au)
+  const q = $('q').value.trim().toLowerCase().replace(/^mc\s*-?/, ''), st = $('state').value, zip = $('zip').value.trim(), seen = $('seen').value;
+  const minM = Number($('months').value), maxM = Number($('maxm').value) || Infinity, tr = Number($('tr').value);
+  return data.filter((r) => (!st || r.state === st) && (!zip || r.zip_code.startsWith(zip))
+    && r.months >= minM && r.months <= maxM && Number(r.tractors) >= tr
     && (!seen || ago(r.first_seen) < Number(seen))
     && (!q || r.mc_number.toLowerCase().includes(q) || r.name.toLowerCase().includes(q) || r.usdot_number === q));
 }
@@ -84,8 +89,8 @@ function render() {
   const rows = filtered();
   $('rows').innerHTML = rows.length ? rows.slice(0, 2000).map((r) => `<tr><td class="mc">${esc(r.mc_number)}</td><td>${esc(r.zip_code)}</td>
     <td>${esc(r.name)}${r.first_seen === today ? '<span class="tag new">new today</span>' : ''}</td><td>${esc(r.state)}</td><td>${esc(r.city)}</td><td>${esc(r.usdot_number)}</td>
-    <td><span class="tag ${r.authority === 'applied' ? 'applied' : ''}">${esc(r.authority)}</span></td><td>${esc(r.event_date)}</td></tr>`).join('')
-    : '<tr><td colspan="8" class="muted">No carriers match these filters.</td></tr>';
+    <td>${esc(r.active_since)}</td><td><span class="tag">${r.months} mo</span></td><td>${esc(r.tractors)}</td><td>${esc(r.power_units)}</td></tr>`).join('')
+    : '<tr><td colspan="10" class="muted">No carriers match these filters.</td></tr>';
   $('foot').textContent = `${rows.length.toLocaleString()} of ${data.length.toLocaleString()} carriers shown${rows.length > 2000 ? ' (first 2,000 listed; the download has all of them)' : ''}.`;
 }
 $('dl').onclick = () => {
@@ -94,19 +99,21 @@ $('dl').onclick = () => {
   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: 'mc-zip-filtered.csv' });
   a.click(); URL.revokeObjectURL(a.href);
 };
-for (const id of ['q', 'state', 'zip', 'auth', 'seen']) $(id).addEventListener('input', render);
+for (const id of ['q', 'state', 'zip', 'months', 'maxm', 'tr', 'seen']) $(id).addEventListener('input', render);
 fetch('data/mc-zip.csv', { cache: 'no-store' }).then((r) => r.text()).then((text) => {
   const [head, ...body] = parse(text);
   cols = head;
   data = body.map((c) => Object.fromEntries(head.map((h, i) => [h, c[i] ?? ''])));
+  // Whole months the authority has been active, computed here so the CSV does not change every day.
+  for (const r of data) r.months = Math.floor(ago(r.active_since) / 30.44);
   const states = [...new Set(data.map((r) => r.state).filter(Boolean))].sort();
   $('state').insertAdjacentHTML('beforeend', states.map((s) => `<option>${esc(s)}</option>`).join(''));
   const stat = (l, v) => `<div class="stat"><div class="l">${l}</div><div class="v">${Number(v).toLocaleString()}</div></div>`;
-  $('stats').innerHTML = stat('Carriers with MC + ZIP', data.length) + stat('New today', data.filter((r) => r.first_seen === today).length)
-    + stat('Authority granted', data.filter((r) => r.authority === 'granted').length) + stat('Applied (pending)', data.filter((r) => r.authority === 'applied').length)
+  $('stats').innerHTML = stat('Qualified carriers (MC + ZIP)', data.length) + stat('Added today', data.filter((r) => r.first_seen === today).length)
+    + stat('Active 5–12 months', data.filter((r) => r.months >= 5 && r.months < 12).length) + stat('Single-truck owner-operators', data.filter((r) => Number(r.power_units) === 1).length)
     + stat('States', states.length);
   render();
-}).catch(() => { $('rows').innerHTML = '<tr><td colspan="8">Could not load the list.</td></tr>'; });
+}).catch(() => { $('rows').innerHTML = '<tr><td colspan="10">Could not load the list.</td></tr>'; });
 </script>
 </body>
 </html>

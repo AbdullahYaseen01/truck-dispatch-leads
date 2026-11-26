@@ -130,6 +130,16 @@ test('generated emails with invented guarantees, numbers, or links are rejected'
   assert.ok(checkGenerated('See https://evil.example', [], settings).length);
 });
 
+test('authority active-since: a suspension resets the streak; pending or revoked carriers are not active', async () => {
+  const { authorityActiveSince } = await import('../src/agents/sources.js');
+  const ev = (d, s) => ({ status_change_date: d, op_auth_status: s });
+  assert.equal(authorityActiveSince([ev('20260110', 'Active'), ev('20250901', 'Pending')]), '20260110', 'out-of-order input');
+  assert.equal(authorityActiveSince([ev('20250101', 'Active'), ev('20250601', 'Active'), ev('20251001', 'Inactive'), ev('20260301', 'Active')]),
+    '20260301', 'reinstated after suspension: the streak restarts');
+  assert.equal(authorityActiveSince([ev('20250101', 'Active'), ev('20260301', 'Inactive')]), null);
+  assert.equal(authorityActiveSince([ev('20261101', 'Pending')]), null);
+});
+
 test('send window uses the recipient state time zone and skips weekends', async () => {
   const { inSendWindow } = await import('../src/agents/outreach.js');
   const s = { send_window_start_hour: 8, send_window_end_hour: 17, send_weekends: false };

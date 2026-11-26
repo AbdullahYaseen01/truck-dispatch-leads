@@ -39,7 +39,7 @@ export function sourceAvailability() {
 }
 
 // ---------- FMCSA Company Census (data.transportation.gov, public, no key required) ----------
-const CENSUS_URL = 'https://data.transportation.gov/resource/az4n-8mr2.json';
+export const CENSUS_URL = 'https://data.transportation.gov/resource/az4n-8mr2.json';
 
 const CARGO_EQUIPMENT = [
   [['crgo_coldfood', 'crgo_produce', 'crgo_meat'], 'Reefer'],
@@ -88,7 +88,7 @@ export function mapCensusRow(r) {
   };
 }
 
-function socrataHeaders() {
+export function socrataHeaders() {
   return config.sources.socrataAppToken ? { 'X-App-Token': config.sources.socrataAppToken } : {};
 }
 
@@ -118,10 +118,31 @@ export async function lookupCensusByDot(dot) {
 // ---------- FMCSA operating-authority events (data.transportation.gov "Motus AuthHist", daily, free) ----------
 // New grants ("Granted") and new applications ("Pending / Initial Status") are the strongest public signal
 // that a carrier is just starting out and has no load sources yet.
+// Runs fn over items with at most `limit` requests in flight; results keep the input order.
+export async function mapPool(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  const worker = async () => { while (next < items.length) { const i = next++; results[i] = await fn(items[i], i); } };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+// From one carrier's authority history (Motus events, any order), the date its CURRENT active streak began,
+// or null when it is not active now. A suspension or revocation resets the streak; a reinstatement starts a new one.
+export function authorityActiveSince(events) {
+  const sorted = [...events].sort((a, b) => String(a.status_change_date).localeCompare(String(b.status_change_date)));
+  let since = null;
+  for (const e of sorted) {
+    if (e.op_auth_status === 'Active') since ||= String(e.status_change_date);
+    else since = null;
+  }
+  return since; // YYYYMMDD
+}
+
 const MOTUS_AUTH_URL = 'https://data.transportation.gov/resource/dm5j-zc6c.json';
 const PROPERTY = /^Motor Carrier of Property/i;
-const normDot = (d) => { const n = Number(String(d ?? '').replace(/\D/g, '')); return n ? String(n) : ''; };
-const mcFromDocket = (d) => (/^MC\d+/i.test(d || '') ? String(Number(d.slice(2))) : null);
+export const normDot = (d) => { const n = Number(String(d ?? '').replace(/\D/g, '')); return n ? String(n) : ''; };
+export const mcFromDocket = (d) => (/^MC\d+/i.test(d || '') ? String(Number(d.slice(2))) : null);
 const isNewAuthorityEvent = (e) => PROPERTY.test(e.op_auth_type || '')
   && (e.reason === 'Granted' || (e.op_auth_status === 'Pending' && e.reason === 'Initial Status'));
 
@@ -139,7 +160,7 @@ function eventOf(e) {
 export async function searchFmcsaAuthority({ state, newWithinDays = 30, maxFleet = 10, limit = 50 }) {
   const since = new Date(Date.now() - Math.min(newWithinDays, 120) * 86400000).toISOString().slice(0, 10).replace(/-/g, '');
   const where = `status_change_date >= '${since}' AND op_auth_type like 'Motor Carrier of Property%' AND (reason = 'Granted' OR (op_auth_status = 'Pending' AND reason = 'Initial Status'))`;
-  const events = await fetchJson(`${MOTUS_AUTH_URL}?${new URLSearchParams({ $where: where, $order: 'status_change_date DESC', $limit: '2000' })}`, { headers: socrataHeaders() });
+  const events = await fetchJson(`${MOTUS_AUTH_URL}?${new URLSearchParams({ $where: where, $order: 'status_change_date DESC', $limit: '20000' })}`, { headers: socrataHeaders() }, { retries: 4 });
   const byDot = new Map();
   for (const e of events) {
     const dot = normDot(e.usdot_number);
@@ -149,10 +170,14 @@ export async function searchFmcsaAuthority({ state, newWithinDays = 30, maxFleet
   const dots = [...byDot.keys()];
   const out = [];
   // Join to the census for name, published email, fleet size and address (100 DOT numbers per request).
-  for (let i = 0; i < dots.length && out.length < limit; i += 100) {
-    const chunk = dots.slice(i, i + 100);
+  const chunks = [];
+  for (let i = 0; i < dots.length; i += 100) chunks.push(dots.slice(i, i + 100));
+  const censusRows = await mapPool(chunks, 6, (chunk) => {
     const w = [`dot_number in (${chunk.map((d) => `'${d}'`).join(',')})`, st ? `phy_state = '${st}'` : null].filter(Boolean).join(' AND ');
-    const rows = await fetchJson(`${CENSUS_URL}?${new URLSearchParams({ $where: w, $limit: '1000' })}`, { headers: socrataHeaders() });
+    return fetchJson(`${CENSUS_URL}?${new URLSearchParams({ $where: w, $limit: '1000' })}`, { headers: socrataHeaders() }, { retries: 4 });
+  });
+  for (const rows of censusRows) {
+    if (out.length >= limit) break;
     for (const r of rows) {
       const dot = normDot(r.dot_number);
       const e = byDot.get(dot);

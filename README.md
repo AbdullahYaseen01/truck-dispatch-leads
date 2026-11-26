@@ -24,13 +24,14 @@ Then in the dashboard:
 
 ## MC number + ZIP code list
 
-The fastest way to get just the MC number and ZIP code of new carriers:
+A **qualified lead** is a carrier whose MC authority has been **continuously active for at least 5 months** (a suspension or revocation restarts the clock) and that runs **at least one tractor** (large commercial truck, owned or leased), with ≤ 10 power units.
 
-- **Automatic, free:** the GitHub Action `.github/workflows/mc-zip-daily.yml` runs every day, pulls the latest FMCSA operating-authority grants and applications (carriers with ≤ 10 trucks), joins them to the FMCSA census for the ZIP, and commits the merged list to [`exports/mc-zip.csv`](exports/mc-zip.csv). Run it on demand from the repository's **Actions** tab ("Run workflow").
-- **Locally:** `npm run export:mc-zip -- --days 7 --max-fleet 10 --out exports/mc-zip.csv`.
+- **Website (Vercel):** https://truck-dispatch-leads.vercel.app: search and filter by state, ZIP, months active and tractors; download CSV.
+- **Agent, free:** the GitHub Action `.github/workflows/mc-zip-daily.yml` runs every 4 hours. It downloads FMCSA's full authority history (Motus AuthHist, ~270k events, pages fetched in parallel), computes each carrier's active-since date, then looks up ZIP and truck counts in the FMCSA census (batches of 100 USDOT numbers, 8 requests in parallel). It rebuilds [`exports/mc-zip.csv`](exports/mc-zip.csv) (carriers that lose authority drop out) and every commit redeploys the website. Run it on demand from **Actions → MC + ZIP agent → Run workflow**.
+- **Locally:** `npm run export:mc-zip -- --min-months 5 --max-months 0 --max-fleet 10 --parallel 8`.
 - **Dashboard:** Lead Database → filter "Has MC number" or a ZIP prefix → **Export MC + ZIP**.
 
-Columns: `mc_number, zip_code, name, state, city, usdot_number, authority (granted/applied), event_date, first_seen`. New carriers receive the new 8-digit FMCSA docket numbers (e.g. `MC56166284`); both FMCSA datasets use them.
+Columns: `mc_number, zip_code, name, state, city, usdot_number, active_since, tractors, power_units, first_seen`. Carriers authorized since 2025 have FMCSA's new 8-digit docket numbers (e.g. `MC56166284`).
 
 ## Agents and data flow
 

@@ -7,9 +7,12 @@ on:
     - cron: '17 */4 * * *' # every 4 hours
   workflow_dispatch:
     inputs:
-      days:
-        description: 'Look back this many days'
-        default: '7'
+      min_months:
+        description: 'Authority active for at least this many months'
+        default: '5'
+      max_fleet:
+        description: 'Max power units'
+        default: '10'
 
 permissions:
   contents: write
@@ -26,7 +29,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: node src/export-mc-zip.js --days "${{ github.event.inputs.days || '7' }}" --out exports/mc-zip.csv
+      - run: node src/export-mc-zip.js --min-months "${{ github.event.inputs.min_months || '5' }}" --max-fleet "${{ github.event.inputs.max_fleet || '10' }}" --out exports/mc-zip.csv
       - name: Commit the updated list
         run: |
           git config user.name "github-actions[bot]"
