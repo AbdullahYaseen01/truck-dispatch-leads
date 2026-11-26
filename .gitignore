@@ -3,3 +3,4 @@ data/
 .env
 /.amp/in/
 site/data/
+.vercel
