@@ -11,6 +11,7 @@
     "start": "node --disable-warning=ExperimentalWarning src/server.js",
     "create-admin": "node --disable-warning=ExperimentalWarning src/cli.js create-admin",
     "export:mc-zip": "node --disable-warning=ExperimentalWarning src/export-mc-zip.js",
+    "contacts": "node --disable-warning=ExperimentalWarning src/qualified-contacts.js",
     "test": "node --disable-warning=ExperimentalWarning --test --test-concurrency=1 \"test/*.test.js\""
   },
   "dependencies": {
