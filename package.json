@@ -1,0 +1,21 @@
+{
+  "name": "truck-dispatch-leads",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Autonomous multi-agent lead generation and outreach platform for US truck dispatching services",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "create-admin": "node --disable-warning=ExperimentalWarning src/cli.js create-admin",
+    "export:mc-zip": "node --disable-warning=ExperimentalWarning src/export-mc-zip.js",
+    "test": "node --disable-warning=ExperimentalWarning --test --test-concurrency=1 \"test/*.test.js\""
+  },
+  "dependencies": {
+    "imapflow": "^2.12.2",
+    "mailparser": "^3.15.0",
+    "nodemailer": "^10.6.1"
+  }
+}

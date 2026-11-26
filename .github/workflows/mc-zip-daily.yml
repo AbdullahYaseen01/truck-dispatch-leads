@@ -1,0 +1,35 @@
+name: Daily MC + ZIP export
+
+# Free: runs on GitHub's runners and pulls only public FMCSA data (no keys).
+on:
+  schedule:
+    - cron: '0 14 * * *' # daily, after FMCSA's daily dataset update
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Look back this many days'
+        default: '7'
+
+permissions:
+  contents: write
+
+concurrency: mc-zip-export
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node src/export-mc-zip.js --days "${{ github.event.inputs.days || '7' }}" --out exports/mc-zip.csv
+      - name: Commit the updated list
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add exports/mc-zip.csv
+          git diff --cached --quiet || git commit -m "data: daily MC + ZIP export"
+          git push

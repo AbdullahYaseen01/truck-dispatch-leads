@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DispatchLeads · Client Acquisition</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div id="login" class="login hidden">
+    <form id="login-form" class="login-card">
+      <div class="brand big"><span class="logo">◆</span> DispatchLeads</div>
+      <p class="muted">Sign in to the client acquisition dashboard</p>
+      <label>Email<input name="email" type="email" autocomplete="username" required></label>
+      <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+      <button class="btn primary wide" type="submit">Sign in</button>
+      <p id="login-error" class="error"></p>
+    </form>
+  </div>
+
+  <div id="shell" class="shell hidden">
+    <aside class="sidebar">
+      <div class="brand"><span class="logo">◆</span> DispatchLeads</div>
+      <nav id="nav"></nav>
+      <div class="sidebar-foot">
+        <div class="live"><span id="live-dot" class="dot"></span><span id="live-text">Connecting…</span></div>
+        <div class="me"><span id="me-name"></span><button class="link" data-act="logout">Sign out</button></div>
+      </div>
+    </aside>
+    <main>
+      <header class="topbar">
+        <button class="btn ghost menu" data-act="toggle-nav">☰</button>
+        <h1 id="title"></h1>
+        <div id="top-actions"></div>
+      </header>
+      <section id="view" class="view"></section>
+    </main>
+  </div>
+
+  <div id="modal" class="modal hidden"><div class="modal-card"><header><h3 id="modal-title"></h3><button class="btn ghost" data-act="close-modal">✕</button></header><div id="modal-body"></div></div></div>
+  <div id="drawer" class="drawer hidden"><div class="drawer-card"><header><h3 id="drawer-title"></h3><button class="btn ghost" data-act="close-drawer">✕</button></header><div id="drawer-body"></div></div></div>
+  <div id="toasts" class="toasts"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
