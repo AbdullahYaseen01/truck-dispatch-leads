@@ -140,6 +140,20 @@ test('authority active-since: a suspension resets the streak; pending or revoked
   assert.equal(authorityActiveSince([ev('20261101', 'Pending')]), null);
 });
 
+test('reply score: shared or service emails are dropped; a recent one-truck interstate owner outranks an old 8-truck fleet', async () => {
+  const { replyScore } = await import('../src/agents/qualified.js');
+  const now = Date.parse('2026-11-26');
+  const carrier = ({ census = {}, ...o }) => ({ power_units: 1, active_since: '2026-05-01', ...o,
+    census: { email_address: 'joe@gmail.com', company_officer_1: 'JOE SMITH', carrier_operation: 'A', mcs150_date: '20260501', crgo_genfreight: 'X', ...census } });
+  assert.match(replyScore(carrier({}), { emailCount: 3, now }).excluded, /shared by 3/);
+  assert.match(replyScore(carrier({ census: { email_address: 'info@abcdispatchservices.com' } }), { now }).excluded, /service company/);
+  assert.equal(replyScore(carrier({ census: { company_officer_1: '' } }), { now }).excluded, 'no owner name');
+  const best = replyScore(carrier({}), { now });
+  const old = replyScore(carrier({ power_units: 8, active_since: '2019-01-01', census: { email_address: 'ops@bigco.com', carrier_operation: 'C', mcs150_date: '20200101', crgo_genfreight: '' } }), { now });
+  assert.equal(best.score, 100);
+  assert.equal(old.score, 0);
+});
+
 test('send window uses the recipient state time zone and skips weekends', async () => {
   const { inSendWindow } = await import('../src/agents/outreach.js');
   const s = { send_window_start_hour: 8, send_window_end_hour: 17, send_weekends: false };
